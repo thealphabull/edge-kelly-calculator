@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Polymarket Edge & Kelly</title>
+  <title>Rektinomics Edge & Kelly</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
@@ -164,6 +164,27 @@
       color: #6b7280;
     }
 
+    .side-toggle {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .side-toggle label {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      color: #e5e7eb;
+    }
+
+    .side-toggle input[type="radio"] {
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
     input,
     select {
       padding: 8px 10px;
@@ -289,21 +310,21 @@
   <div class="shell">
     <div class="shell-header">
       <div class="brand-title">
-        <h1>Polymarket Edge & Kelly</h1>
-        <span>Plan your risk like a professional, one market at a time.</span>
+        <h1>Rektinomics Edge & Kelly</h1>
+        <span>Plan your risk like a professional, one Polymarket at a time.</span>
       </div>
-      <div class="badge">Experimental · V1</div>
+      <div class="badge">Experimental · V1.1</div>
     </div>
 
     <div class="app">
       <p class="subtitle">
-        Learn how price, your belief, and Kelly sizing interact. All values are in generic “units” (not real money or advice).
+        Input the YES price, your belief about the event, and which side you want to bet. All values are educational “units” (not real money or advice).
       </p>
 
       <div class="grid">
-        <!-- Market price -->
+        <!-- YES price -->
         <div class="field">
-          <label for="marketPrice">Market price (0–1)</label>
+          <label for="marketPrice">YES price on Polymarket (0–1)</label>
           <input
             id="marketPrice"
             type="number"
@@ -313,13 +334,13 @@
             value="0.60"
           />
           <div class="hint">
-            Example: if the contract trades at 0.63, enter <b>0.63</b>.
+            Example: if YES trades at 0.63, enter <b>0.63</b>. NO price is assumed to be <b>1 − YES</b>.
           </div>
         </div>
 
-        <!-- Personal probability -->
+        <!-- Personal probability of event happening -->
         <div class="field">
-          <label for="myProb">Your probability (in %)</label>
+          <label for="myProb">Your probability that the event happens (in %)</label>
           <input
             id="myProb"
             type="number"
@@ -329,7 +350,25 @@
             value="65"
           />
           <div class="hint">
-            Example: if you think the event is 70% likely, enter <b>70</b>.
+            Example: if you think the event has a 70% chance, enter <b>70</b>.
+          </div>
+        </div>
+
+        <!-- Side selector -->
+        <div class="field">
+          <label>Side you want to bet</label>
+          <div class="side-toggle">
+            <label>
+              <input type="radio" name="side" value="yes" checked />
+              YES – I’m betting the event <b>happens</b>
+            </label>
+            <label>
+              <input type="radio" name="side" value="no" />
+              NO – I’m betting the event <b>does not happen</b>
+            </label>
+          </div>
+          <div class="hint">
+            For NO, we mirror the price as <b>NO price = 1 − YES price</b>.
           </div>
         </div>
 
@@ -369,13 +408,13 @@
         <h2>Results</h2>
         <div class="results-grid">
           <div class="result-item">
-            <div class="result-label">Market implied probability</div>
+            <div class="result-label">Implied probability of <u>your side</u></div>
             <div class="result-value" id="impliedProbValue">–</div>
-            <div class="result-note">Based only on the current price.</div>
+            <div class="result-note" id="impliedNote">Based on price and the side you chose.</div>
           </div>
 
           <div class="result-item">
-            <div class="result-label">Your edge</div>
+            <div class="result-label">Your edge on this side</div>
             <div class="result-value" id="edgeValue">–</div>
             <div class="result-note" id="edgeNote"></div>
           </div>
@@ -408,7 +447,7 @@
     </div>
   </div>
 
-    <script>
+  <script>
     // Helper to format as percentage
     function fmtPercent(x) {
       return (x * 100).toFixed(2) + "%";
@@ -420,18 +459,26 @@
     }
 
     document.getElementById("calcBtn").addEventListener("click", function () {
-      const marketPrice = parseFloat(document.getElementById("marketPrice").value);
+      const yesPrice = parseFloat(document.getElementById("marketPrice").value);
       const myProbPercent = parseFloat(document.getElementById("myProb").value);
       const bankroll = parseFloat(document.getElementById("bankroll").value);
       const fraction = parseFloat(document.getElementById("fraction").value);
+      const sideInput = document.querySelector('input[name="side"]:checked');
 
       const resultsDiv = document.getElementById("results");
 
+      if (!sideInput) {
+        alert("Please choose whether you are betting YES or NO.");
+        return;
+      }
+
+      const side = sideInput.value; // "yes" or "no"
+
       // Basic validation
       if (
-        isNaN(marketPrice) ||
-        marketPrice <= 0 ||
-        marketPrice >= 1 ||
+        isNaN(yesPrice) ||
+        yesPrice <= 0 ||
+        yesPrice >= 1 ||
         isNaN(myProbPercent) ||
         myProbPercent <= 0 ||
         myProbPercent >= 100 ||
@@ -439,33 +486,50 @@
         bankroll <= 0
       ) {
         alert(
-          "Please enter:\n- market price between 0 and 1 (e.g. 0.63)\n- your probability between 0 and 100\n- bankroll greater than 0."
+          "Please enter:\n- YES price between 0 and 1 (e.g. 0.63)\n- your probability between 0 and 100\n- bankroll greater than 0."
         );
         return;
       }
 
-      // Convert to decimals
-      const p = myProbPercent / 100; // your probability (0–1)
-      const q = 1 - p;
+      // Your event probability in decimal
+      const pEvent = myProbPercent / 100;
 
-      // Implied probability from price
-      const impliedProb = marketPrice; // since payoff is 1 unit
+      let stakePrice;         // price you pay for the side you are betting
+      let pOutcome;           // probability of the outcome you are betting on
+      let impliedOutcomeProb; // implied probability of that outcome from price
+      let impliedNoteText;
 
-      // Edge (your probability - market implied probability)
-      const edge = p - impliedProb;
+      if (side === "yes") {
+        // Betting YES: event happens
+        stakePrice = yesPrice;
+        pOutcome = pEvent;
+        impliedOutcomeProb = yesPrice;
+        impliedNoteText = "This is the implied probability that the event happens (YES).";
+      } else {
+        // Betting NO: event does NOT happen
+        const noPrice = 1 - yesPrice; // approximation for a binary market
+        stakePrice = noPrice;
+        pOutcome = 1 - pEvent; // probability event does NOT happen
+        impliedOutcomeProb = noPrice;
+        impliedNoteText = "This is the implied probability that the event does NOT happen (NO).";
+      }
 
-      // Kelly math
-      // For a YES contract priced at s:
-      // net odds b = (1 - s) / s
-      // Kelly fraction f* = (b*p - q) / b
-      const s = marketPrice;
+      const qOutcome = 1 - pOutcome;
+
+      // Edge (your probability - market implied probability on the side you're betting)
+      const edge = pOutcome - impliedOutcomeProb;
+
+      // Kelly math for your side:
+      // net odds b = (1 - stakePrice) / stakePrice
+      // Kelly fraction f* = (b * pOutcome - qOutcome) / b
+      const s = stakePrice;
       const b = (1 - s) / s;
-      const kellyFull = (b * p - q) / b;
+      const kellyFull = (b * pOutcome - qOutcome) / b;
 
-      // Expected value per 1 unit staked:
-      // If event happens: gain = (1 - s)
-      // If event fails: loss = -s
-      const evPerUnit = p * (1 - s) + q * (-s);
+      // Expected value per 1 unit staked on this side:
+      // If your outcome happens: gain = (1 - s)
+      // If it does not: loss = -s
+      const evPerUnit = pOutcome * (1 - s) + qOutcome * (-s);
 
       // Apply fractional Kelly
       let kellyUsed = kellyFull * fraction;
@@ -477,7 +541,8 @@
       const positionSize = bankroll * kellyUsed;
 
       // Update UI
-      document.getElementById("impliedProbValue").textContent = fmtPercent(impliedProb);
+      document.getElementById("impliedProbValue").textContent = fmtPercent(impliedOutcomeProb);
+      document.getElementById("impliedNote").textContent = impliedNoteText;
 
       const edgeElem = document.getElementById("edgeValue");
       const edgeNote = document.getElementById("edgeNote");
@@ -485,13 +550,13 @@
       edgeElem.textContent = fmtPercent(edge);
       if (edge > 0) {
         edgeElem.className = "result-value success";
-        edgeNote.textContent = "Your view is more optimistic than the market.";
+        edgeNote.textContent = "Your belief is more optimistic about this side than the market price.";
       } else if (edge < 0) {
         edgeElem.className = "result-value danger";
-        edgeNote.textContent = "Your view is more pessimistic than the market.";
+        edgeNote.textContent = "Your belief is less optimistic about this side than the market price.";
       } else {
         edgeElem.className = "result-value";
-        edgeNote.textContent = "You agree exactly with the market.";
+        edgeNote.textContent = "You agree exactly with the market on this side.";
       }
 
       const kellyFractionElem = document.getElementById("kellyFractionValue");
@@ -508,11 +573,11 @@
       positionElem.textContent = fmtUnits(positionSize);
       if (kellyFull <= 0) {
         positionElem.className = "result-value danger";
-        positionNote.textContent = "Kelly suggests no position (edge is not positive).";
+        positionNote.textContent = "Kelly suggests no position on this side (edge is not positive).";
       } else {
         positionElem.className = "result-value success";
         positionNote.textContent =
-          "This uses your chosen fractional Kelly on your bankroll.";
+          "This uses your chosen fractional Kelly on your bankroll for this side.";
       }
 
       const evElem = document.getElementById("evValue");
