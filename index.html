@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Polymarket Edge & Kelly</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    /* RESET + BASE */
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 0% 0%, #1d4ed8 0, transparent 45%),
+        radial-gradient(circle at 100% 0%, #22d3ee 0, transparent 45%),
+        radial-gradient(circle at 0% 100%, #4ade80 0, transparent 50%),
+        #020617;
+      position: relative;
+    }
+
+    /* GRID OVERLAY (SUBTLE LINES BEHIND CARD) */
+    .grid-overlay {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.8;
+      z-index: 1;
+    }
+
+    /* GLOWING ORBS AROUND THE CARD */
+    .bg-orb {
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(70px);
+      opacity: 0.65;
+      z-index: 0;
+    }
+
+    .bg-orb-1 {
+      width: 320px;
+      height: 320px;
+      background: #1d4ed8;
+      top: -60px;
+      left: -60px;
+    }
+
+    .bg-orb-2 {
+      width: 280px;
+      height: 280px;
+      background: #22c55e;
+      bottom: -40px;
+      right: 10%;
+    }
+
+    .bg-orb-3 {
+      width: 260px;
+      height: 260px;
+      background: #06b6d4;
+      bottom: 15%;
+      left: -40px;
+    }
+
+    /* MAIN SHELL */
+    .shell {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 900px;
+      padding: 24px;
+    }
+
+    .shell-header {
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .brand-title h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: 0.03em;
+      color: #e5f2ff;
+    }
+
+    .brand-title span {
+      font-size: 13px;
+      color: #a5b4fc;
+    }
+
+    .badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(96, 165, 250, 0.6);
+      background: rgba(15, 23, 42, 0.75);
+      color: #bfdbfe;
+      white-space: nowrap;
+    }
+
+    /* APP CARD (THE CALCULATOR CONTAINER) */
+    .app {
+      width: 100%;
+      background: radial-gradient(circle at top, rgba(59, 130, 246, 0.3), rgba(15, 23, 42, 0.95) 55%);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow:
+        0 24px 60px rgba(15, 23, 42, 0.9),
+        0 0 0 1px rgba(148, 163, 184, 0.3);
+      border: 1px solid rgba(30, 64, 175, 0.9);
+      backdrop-filter: blur(14px);
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      margin-bottom: 20px;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    label {
+      font-size: 13px;
+      color: #d1d5db;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    input,
+    select {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4);
+    }
+
+    button {
+      margin-top: 18px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      color: white;
+      box-shadow: 0 12px 25px rgba(37, 99, 235, 0.5);
+    }
+
+    button:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .results {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid #1f2937;
+      background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), rgba(15, 23, 42, 0.95) 60%);
+    }
+
+    .results h2 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #bfdbfe;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .result-item {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(30, 64, 175, 0.6);
+    }
+
+    .result-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #9ca3af;
+    }
+
+    .result-value {
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .result-note {
+      font-size: 12px;
+      margin-top: 4px;
+      color: #9ca3af;
+    }
+
+    .danger {
+      color: #fca5a5;
+    }
+
+    .success {
+      color: #bbf7d0;
+    }
+
+    footer {
+      margin-top: 14px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: right;
+    }
+
+    footer span {
+      color: #9ca3af;
+    }
+
+    @media (max-width: 600px) {
+      .shell {
+        padding: 16px;
+      }
+      .app {
+        padding: 18px;
+      }
+      .brand-title h1 {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Decorative elements -->
+  <div class="grid-overlay"></div>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+
+  <!-- Main wrapper -->
+  <div class="shell">
+    <div class="shell-header">
+      <div class="brand-title">
+        <h1>Polymarket Edge & Kelly</h1>
+        <span>Plan your risk like a professional, one market at a time.</span>
+      </div>
+      <div class="badge">Experimental · V1</div>
+    </div>
+
+    <div class="app">
+      <p class="subtitle">
+        Learn how price, your belief, and Kelly sizing interact. All values are in generic “units” (not real money or advice).
+      </p>
+
+      <div class="grid">
+        <!-- Market price -->
+        <div class="field">
+          <label for="marketPrice">Market price (0–1)</label>
+          <input
+            id="marketPrice"
+            type="number"
+            step="0.01"
+            min="0"
+            max="1"
+            value="0.60"
+          />
+          <div class="hint">
+            Example: if the contract trades at 0.63, enter <b>0.63</b>.
+          </div>
+        </div>
+
+        <!-- Personal probability -->
+        <div class="field">
+          <label for="myProb">Your probability (in %)</label>
+          <input
+            id="myProb"
+            type="number"
+            step="0.5"
+            min="0"
+            max="100"
+            value="65"
+          />
+          <div class="hint">
+            Example: if you think the event is 70% likely, enter <b>70</b>.
+          </div>
+        </div>
+
+        <!-- Bankroll -->
+        <div class="field">
+          <label for="bankroll">Bankroll (units)</label>
+          <input
+            id="bankroll"
+            type="number"
+            step="1"
+            min="0"
+            value="1000"
+          />
+          <div class="hint">
+            Use any unit you like (points, credits, etc.).
+          </div>
+        </div>
+
+        <!-- Fractional Kelly -->
+        <div class="field">
+          <label for="fraction">Fractional Kelly</label>
+          <select id="fraction">
+            <option value="1">1.0 × (full Kelly)</option>
+            <option value="0.5" selected>0.5 × (half Kelly)</option>
+            <option value="0.25">0.25 × (quarter Kelly)</option>
+            <option value="0.1">0.1 × (very conservative)</option>
+          </select>
+          <div class="hint">
+            Beginners usually prefer less than full Kelly.
+          </div>
+        </div>
+      </div>
+
+      <button id="calcBtn">Calculate</button>
+
+      <div class="results" id="results" style="display: none;">
+        <h2>Results</h2>
+        <div class="results-grid">
+          <div class="result-item">
+            <div class="result-label">Market implied probability</div>
+            <div class="result-value" id="impliedProbValue">–</div>
+            <div class="result-note">Based only on the current price.</div>
+          </div>
+
+          <div class="result-item">
+            <div class="result-label">Your edge</div>
+            <div class="result-value" id="edgeValue">–</div>
+            <div class="result-note" id="edgeNote"></div>
+          </div>
+
+          <div class="result-item">
+            <div class="result-label">Full Kelly fraction</div>
+            <div class="result-value" id="kellyFractionValue">–</div>
+            <div class="result-note">Before applying fractional Kelly.</div>
+          </div>
+
+          <div class="result-item">
+            <div class="result-label">Suggested position size</div>
+            <div class="result-value" id="positionSizeValue">–</div>
+            <div class="result-note" id="positionNote"></div>
+          </div>
+
+          <div class="result-item">
+            <div class="result-label">EV per 1 unit staked</div>
+            <div class="result-value" id="evValue">–</div>
+            <div class="result-note">
+              Positive EV means good in theory, negative means bad in theory.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <span>Note:</span> Educational calculator only – not trading or financial advice.
+      </footer>
+    </div>
+  </div>
+
+    <script>
+    // Helper to format as percentage
+    function fmtPercent(x) {
+      return (x * 100).toFixed(2) + "%";
+    }
+
+    // Helper to format as units
+    function fmtUnits(x) {
+      return x.toFixed(2) + " units";
+    }
+
+    document.getElementById("calcBtn").addEventListener("click", function () {
+      const marketPrice = parseFloat(document.getElementById("marketPrice").value);
+      const myProbPercent = parseFloat(document.getElementById("myProb").value);
+      const bankroll = parseFloat(document.getElementById("bankroll").value);
+      const fraction = parseFloat(document.getElementById("fraction").value);
+
+      const resultsDiv = document.getElementById("results");
+
+      // Basic validation
+      if (
+        isNaN(marketPrice) ||
+        marketPrice <= 0 ||
+        marketPrice >= 1 ||
+        isNaN(myProbPercent) ||
+        myProbPercent <= 0 ||
+        myProbPercent >= 100 ||
+        isNaN(bankroll) ||
+        bankroll <= 0
+      ) {
+        alert(
+          "Please enter:\n- market price between 0 and 1 (e.g. 0.63)\n- your probability between 0 and 100\n- bankroll greater than 0."
+        );
+        return;
+      }
+
+      // Convert to decimals
+      const p = myProbPercent / 100; // your probability (0–1)
+      const q = 1 - p;
+
+      // Implied probability from price
+      const impliedProb = marketPrice; // since payoff is 1 unit
+
+      // Edge (your probability - market implied probability)
+      const edge = p - impliedProb;
+
+      // Kelly math
+      // For a YES contract priced at s:
+      // net odds b = (1 - s) / s
+      // Kelly fraction f* = (b*p - q) / b
+      const s = marketPrice;
+      const b = (1 - s) / s;
+      const kellyFull = (b * p - q) / b;
+
+      // Expected value per 1 unit staked:
+      // If event happens: gain = (1 - s)
+      // If event fails: loss = -s
+      const evPerUnit = p * (1 - s) + q * (-s);
+
+      // Apply fractional Kelly
+      let kellyUsed = kellyFull * fraction;
+
+      // Clamp: do not suggest negative or >100% of bankroll
+      if (kellyUsed < 0) kellyUsed = 0;
+      if (kellyUsed > 1) kellyUsed = 1;
+
+      const positionSize = bankroll * kellyUsed;
+
+      // Update UI
+      document.getElementById("impliedProbValue").textContent = fmtPercent(impliedProb);
+
+      const edgeElem = document.getElementById("edgeValue");
+      const edgeNote = document.getElementById("edgeNote");
+
+      edgeElem.textContent = fmtPercent(edge);
+      if (edge > 0) {
+        edgeElem.className = "result-value success";
+        edgeNote.textContent = "Your view is more optimistic than the market.";
+      } else if (edge < 0) {
+        edgeElem.className = "result-value danger";
+        edgeNote.textContent = "Your view is more pessimistic than the market.";
+      } else {
+        edgeElem.className = "result-value";
+        edgeNote.textContent = "You agree exactly with the market.";
+      }
+
+      const kellyFractionElem = document.getElementById("kellyFractionValue");
+      kellyFractionElem.textContent = fmtPercent(kellyFull);
+      if (kellyFull <= 0) {
+        kellyFractionElem.className = "result-value danger";
+      } else {
+        kellyFractionElem.className = "result-value success";
+      }
+
+      const positionElem = document.getElementById("positionSizeValue");
+      const positionNote = document.getElementById("positionNote");
+
+      positionElem.textContent = fmtUnits(positionSize);
+      if (kellyFull <= 0) {
+        positionElem.className = "result-value danger";
+        positionNote.textContent = "Kelly suggests no position (edge is not positive).";
+      } else {
+        positionElem.className = "result-value success";
+        positionNote.textContent =
+          "This uses your chosen fractional Kelly on your bankroll.";
+      }
+
+      const evElem = document.getElementById("evValue");
+      evElem.textContent = evPerUnit.toFixed(4) + " per unit";
+      if (evPerUnit >= 0) {
+        evElem.className = "result-value success";
+      } else {
+        evElem.className = "result-value danger";
+      }
+
+      resultsDiv.style.display = "block";
+    });
+  </script>
+</body>
+</html>
